@@ -3,30 +3,296 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="build" content="phase2-avatar">
 <title>Hello, world</title>
+<script>
+  // Set the theme before first paint: stored choice wins, otherwise the OS preference.
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem('theme'); } catch (e) {}
+    if (stored !== 'light' && stored !== 'dark') {
+      stored = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.dataset.theme = stored;
+  })();
+</script>
 <style>
-  :root { color-scheme: light dark; }
-  html, body { height: 100%; margin: 0; }
+  :root {
+    color-scheme: light;
+    --bg: #f7f7f5; --fg: #1f2328; --muted: #57606a;
+    --surface: #ffffff; --border: #d0d7de; --accent: #4f6df5;
+    --halo: rgba(79, 109, 245, 0.14);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1;
+    --surface: #161b22; --border: #30363d; --accent: #58d5ff;
+    --halo: rgba(88, 213, 255, 0.13);
+  }
+  /* No-JS fallback: follow the OS preference. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      color-scheme: dark;
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1;
+      --surface: #161b22; --border: #30363d; --accent: #58d5ff;
+      --halo: rgba(88, 213, 255, 0.13);
+    }
+  }
+  html, body { min-height: 100%; margin: 0; }
   body {
+    min-height: 100vh; min-height: 100dvh;
     display: flex; align-items: center; justify-content: center;
-    padding: 0 16px; box-sizing: border-box; text-align: center;
+    padding: 56px 16px 24px; box-sizing: border-box; text-align: center;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: #f7f7f5; color: #1f2328;
+    background: var(--bg); color: var(--fg);
   }
   h1 { font-size: clamp(2.25rem, 8vw, 4.5rem); margin: 0 0 0.4em; letter-spacing: -0.02em; }
-  p { margin: 0.3em 0; font-size: 1.1rem; color: #57606a; }
+  p { margin: 0.3em 0; font-size: 1.1rem; color: var(--muted); }
   .date { font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #0d1117; color: #e6edf3; }
-    p { color: #9198a1; }
+
+  .avatar {
+    position: relative; width: min(280px, 70vw); aspect-ratio: 1; margin: 0 auto 8px;
+    background: radial-gradient(closest-side, var(--halo), transparent 72%);
   }
+  .avatar canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .avatar canvas[hidden] { display: none; }
+  .avatar .fallback {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 6rem; line-height: 1;
+  }
+  .avatar.ready .fallback { display: none; }
+
+  .theme-toggle {
+    position: fixed; top: 12px; right: 12px; width: 44px; height: 44px; padding: 0;
+    border-radius: 50%; border: 1px solid var(--border); background: var(--surface);
+    color: var(--fg); font-size: 1.25rem; line-height: 1; cursor: pointer;
+  }
+  .theme-toggle:hover { border-color: var(--accent); }
+  .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .theme-toggle::before { content: "🌙"; }
+  :root[data-theme="dark"] .theme-toggle::before { content: "☀️"; }
+  :root:not([data-theme]) .theme-toggle { display: none; } /* needs JS */
 </style>
+<script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script>
 </head>
 <body>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme"></button>
   <main>
+    <div class="avatar" id="avatar">
+      <canvas id="avatar-canvas" width="280" height="280" hidden
+              role="img" aria-label="Animated 3D robot avatar of the agent"></canvas>
+      <div class="fallback" role="img" aria-label="Robot avatar">🤖</div>
+    </div>
     <h1>Hello, world 👋</h1>
     <p>Built by an agent driven from Hermes via herdr.</p>
     <p class="date">Build date: <time datetime="2026-11-18">2026-11-18</time></p>
   </main>
+
+<script>
+  // Theme toggle: overrides the OS preference and persists the choice.
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('theme-toggle');
+    function apply(theme) {
+      root.dataset.theme = theme;
+      btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      btn.title = btn.getAttribute('aria-label');
+      window.dispatchEvent(new CustomEvent('themechange', { detail: theme }));
+    }
+    apply(root.dataset.theme);
+    btn.addEventListener('click', function () {
+      var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('theme', next); } catch (e) {}
+      apply(next);
+    });
+    // Keep following the OS while the visitor has not chosen a theme.
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+      var stored = null;
+      try { stored = localStorage.getItem('theme'); } catch (err) {}
+      if (stored !== 'light' && stored !== 'dark') apply(e.matches ? 'dark' : 'light');
+    });
+  })();
+</script>
+
+<script type="module">
+  // The agent's avatar: a small robot built only from three.js primitives.
+  const wrap = document.getElementById('avatar');
+  const canvas = document.getElementById('avatar-canvas');
+
+  const PALETTES = {
+    light: { shell: 0xf2f4f8, trim: 0x4f6df5, visor: 0x1b2233, eye: 0x7fe3ff, eyeGlow: 0.9,
+             ambient: 0xffffff, ambientI: 1.5, key: 0xffffff, keyI: 2.4, rim: 0x9db4ff, rimI: 1.2 },
+    dark:  { shell: 0x39445a, trim: 0x58d5ff, visor: 0x05080f, eye: 0x58d5ff, eyeGlow: 2.2,
+             ambient: 0x8fa8ff, ambientI: 0.9, key: 0xdfe8ff, keyI: 1.7, rim: 0x58d5ff, rimI: 3.0 },
+  };
+
+  try {
+    const THREE = await import('three');
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(280, 280, false);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
+    camera.position.set(0, 0.15, 7.2);
+
+    const ambient = new THREE.AmbientLight();
+    const key = new THREE.DirectionalLight();
+    key.position.set(2.5, 4, 5);
+    const rim = new THREE.DirectionalLight();
+    rim.position.set(-4, 1.5, -3);
+    scene.add(ambient, key, rim);
+
+    const shellMat = new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.1 });
+    const trimMat = new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.2 });
+    const visorMat = new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.4 });
+    const eyeMat = new THREE.MeshStandardMaterial({ roughness: 0.3 });
+    const mesh = (geo, mat, parent, x = 0, y = 0, z = 0) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      parent.add(m);
+      return m;
+    };
+
+    const robot = new THREE.Group();
+    scene.add(robot);
+
+    // Body and arms.
+    mesh(new THREE.CapsuleGeometry(0.62, 0.35, 8, 24), shellMat, robot, 0, -1.25, 0);
+    mesh(new THREE.TorusGeometry(0.5, 0.07, 12, 40), trimMat, robot, 0, -0.72, 0).rotation.x = Math.PI / 2;
+    mesh(new THREE.SphereGeometry(0.13, 20, 16), eyeMat, robot, 0, -1.2, 0.6).scale.z = 0.5;
+    const arms = [-1, 1].map((side) => {
+      const arm = mesh(new THREE.CapsuleGeometry(0.15, 0.45, 6, 16), shellMat, robot, side * 0.86, -1.2, 0);
+      arm.rotation.z = side * 0.3;
+      return arm;
+    });
+
+    // Head: a squashed sphere with a dark visor, eyes, ears and an antenna.
+    const head = new THREE.Group();
+    head.position.y = 0.25;
+    robot.add(head);
+    mesh(new THREE.SphereGeometry(1, 48, 32), shellMat, head).scale.set(1.12, 0.92, 0.98);
+    mesh(new THREE.SphereGeometry(1, 48, 32), visorMat, head, 0, 0, 0.36).scale.set(0.88, 0.56, 0.72);
+    const eyes = [-1, 1].map((side) => {
+      const eye = mesh(new THREE.SphereGeometry(0.17, 24, 20), eyeMat, head, side * 0.36, 0.05, 1.03);
+      eye.scale.z = 0.4;
+      return eye;
+    });
+    const mouth = mesh(new THREE.TorusGeometry(0.16, 0.03, 8, 24, Math.PI), eyeMat, head, 0, -0.2, 1.06);
+    mouth.rotation.z = Math.PI; // arc opens upwards: a smile
+    [-1, 1].forEach((side) => {
+      mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.16, 28), trimMat, head, side * 1.13, 0, 0).rotation.z = Math.PI / 2;
+    });
+    mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.45, 12), trimMat, head, 0, 1.1, 0);
+    const bulb = mesh(new THREE.SphereGeometry(0.12, 20, 16), eyeMat, head, 0, 1.38, 0);
+
+    function applyTheme(theme) {
+      const p = PALETTES[theme] || PALETTES.light;
+      shellMat.color.setHex(p.shell);
+      trimMat.color.setHex(p.trim);
+      visorMat.color.setHex(p.visor);
+      eyeMat.color.setHex(p.eye);
+      eyeMat.emissive.setHex(p.eye);
+      eyeMat.emissiveIntensity = p.eyeGlow;
+      ambient.color.setHex(p.ambient); ambient.intensity = p.ambientI;
+      key.color.setHex(p.key); key.intensity = p.keyI;
+      rim.color.setHex(p.rim); rim.intensity = p.rimI;
+      canvas.dataset.theme = theme;
+    }
+
+    // Pointer position relative to the avatar, roughly -1..1.
+    const pointer = { x: 0, y: 0 };
+    window.addEventListener('pointermove', (e) => {
+      const r = canvas.getBoundingClientRect();
+      const clamp = (v) => Math.max(-1, Math.min(1, v));
+      pointer.x = clamp((e.clientX - (r.left + r.width / 2)) / (window.innerWidth / 2));
+      pointer.y = clamp((e.clientY - (r.top + r.height / 2)) / (window.innerHeight / 2));
+    }, { passive: true });
+
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    const clock = new THREE.Clock();
+    let nextBlink = 2, blinkT = -1, look = { x: 0, y: 0 }, frames = 0, rafId = 0;
+
+    function pose(t, dt) {
+      // Idle bob and sway.
+      robot.position.y = 0.35 + Math.sin(t * 1.6) * 0.07;
+      robot.rotation.y = Math.sin(t * 0.6) * 0.22;
+      arms[0].rotation.x = Math.sin(t * 1.6) * 0.12;
+      arms[1].rotation.x = -Math.sin(t * 1.6) * 0.12;
+      bulb.scale.setScalar(1 + Math.sin(t * 3) * 0.12);
+
+      // Ease the head (and, a little more, the eyes) towards the pointer.
+      const k = 1 - Math.exp(-dt * 6);
+      look.x += (pointer.x - look.x) * k;
+      look.y += (pointer.y - look.y) * k;
+      head.rotation.y = look.x * 0.38;
+      head.rotation.x = look.y * 0.28;
+      head.rotation.z = Math.sin(t * 0.9) * 0.04 - look.x * 0.06;
+      eyes.forEach((eye, i) => {
+        eye.position.x = (i ? 1 : -1) * 0.36 + look.x * 0.05;
+        eye.position.y = 0.05 - look.y * 0.04;
+      });
+
+      // Blink: a quick squash of both eyes every few seconds.
+      if (blinkT < 0 && t > nextBlink) blinkT = 0;
+      let open = 1;
+      if (blinkT >= 0) {
+        blinkT += dt;
+        open = Math.max(0.08, Math.abs(1 - blinkT / 0.09));
+        if (blinkT > 0.18) { blinkT = -1; open = 1; nextBlink = t + 2 + Math.random() * 3.5; }
+      }
+      eyes.forEach((eye) => { eye.scale.y = open; });
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+      canvas.dataset.frames = String(++frames);
+    }
+    function tick() {
+      rafId = requestAnimationFrame(tick);
+      const dt = Math.min(clock.getDelta(), 0.1);
+      pose(clock.elapsedTime, dt);
+      render();
+    }
+    function start() {
+      cancelAnimationFrame(rafId);
+      if (reduceMotion.matches) {
+        // Reduced motion: one still, neutral frame; re-rendered only on theme change.
+        pointer.x = pointer.y = look.x = look.y = 0;
+        pose(0, 0);
+        render();
+        canvas.dataset.motion = 'reduced';
+      } else {
+        clock.getDelta();
+        canvas.dataset.motion = 'full';
+        tick();
+      }
+    }
+
+    applyTheme(document.documentElement.dataset.theme);
+    window.addEventListener('themechange', (e) => {
+      applyTheme(e.detail);
+      if (reduceMotion.matches) render();
+    });
+    reduceMotion.addEventListener('change', start);
+    canvas.addEventListener('webglcontextlost', () => {
+      cancelAnimationFrame(rafId);
+      canvas.hidden = true;
+      wrap.classList.remove('ready');
+    });
+
+    start();
+    canvas.hidden = false;
+    wrap.classList.add('ready');
+  } catch (err) {
+    // No WebGL, or three.js failed to load: keep the emoji fallback.
+    console.warn('Avatar unavailable, showing fallback:', err);
+    canvas.hidden = true;
+    wrap.classList.remove('ready');
+  }
+</script>
 </body>
 </html>
